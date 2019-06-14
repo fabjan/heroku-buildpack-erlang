@@ -97,21 +97,8 @@ else
         OTP_VERSION=$(cat ${build}/.preferred_otp_version)
     fi
     ver=${OTP_VERSION:=${DEFAULT_OTP_VERSION}}
-    case $STACK in
-        cedar-14)
-            echo "-----> Stack is cedar-14"
-            tarball="${ver}_cedar-14.tgz"
-            location="runtimes/"
-            strip=""
-            ;;
-        *)
-            echo "-----> Stack is cedar"
-            tarball="${ver}.tgz"
-            location=""
-            strip="--strip-components=2"
-            ;;
-    esac
-    OTP_TARBALL_URL="https://s3.amazonaws.com/heroku-buildpack-erlang/${location}${tarball}"
+    tarball="${ver}.zip"
+    OTP_TARBALL_URL="https://github.com/erlang/otp/archive/${tarball}"
     ERLROOT=${build}/otp
     PROFILE=${HOME}/.profile.d
 
@@ -126,16 +113,30 @@ else
         rm -rf ${cache}/* # be sure not to build up cruft
         cd ${cache}
         echo "-------> Fetching Erlang/$ver"
-        curl -sSO ${OTP_TARBALL_URL}
-
+        wget -q ${OTP_TARBALL_URL}
+        
         echo "-------> Finished fetching tarball, checking"
-        file ${tarball} | grep -ql gzip
-
+        # file ${tarball} | grep -ql gzip
     )
 
+    SDKROOT=${build}/otp-sdk
     echo "-------> Unpacking Erlang/OTP $ver"
-    mkdir -p ${ERLROOT}
-    tar zxf ${cache}/${tarball} -C ${ERLROOT} ${strip}
+    mkdir -p ${build}/otp-sdk
+    unzip -qq ${cache}/${tarball} -d ${build}/otp-sdk
+    
+    echo "-------> compile Erlang/OTP $ver"
+    (
+        chmod -R 777 ${SDKROOT}/otp-${ver}
+        cd ${SDKROOT}/otp-${ver}
+
+        ./otp_build autoconf
+        ./configure --with-ssl --enable-dirty-schedulers
+        make
+        make release
+    )
+    mv ${SDKROOT}/otp-${ver}/release/x86_64-unknown-linux-gnu/ ${ERLROOT}
+    rm -rf ${SDKROOT}
+    
     echo "-------> Installing Erlang/OTP $ver"
     ln -s ${ERLROOT} /app/otp
     ${ERLROOT}/Install -minimal /app/otp
