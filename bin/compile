@@ -126,7 +126,7 @@ else
         set -e
 
         # Already cached?
-        test -f $RELEASE_BUILD && exit
+        test -d $RELEASE_BUILD && exit
 
         echo "-------> Unpacking Erlang/OTP $ver"
         mkdir -p ${SDKROOT}
