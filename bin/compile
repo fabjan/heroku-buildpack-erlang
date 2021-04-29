@@ -52,7 +52,7 @@ if [ $BINARY_RELEASES ]; then
         # Already cached?
         test -f "${cache}/${tarball}" && exit
 
-        rm -rf ${cache}/* # be sure not to build up cruft
+        rm -rf ${cache}/*.tar.gz # be sure not to build up cruft
         cd ${cache}
         echo "-------> Fetching Release"
         ${bpdir}/opt/gof3r get -b $BUCKET -k "$TARBALL_URL" -p "${cache}/${tarball}" --no-md5 || exit 1
@@ -110,7 +110,7 @@ else
         # Already cached?
         test -f ${cache}/${tarball} && exit
 
-        rm -rf ${cache}/* # be sure not to build up cruft
+        rm -rf ${cache}/*.zip # be sure not to build up cruft
         cd ${cache}
         echo "-------> Fetching Erlang/$ver"
         wget -q ${OTP_TARBALL_URL}
@@ -119,23 +119,33 @@ else
         # file ${tarball} | grep -ql gzip
     )
 
-    SDKROOT=${build}/otp-sdk
-    echo "-------> Unpacking Erlang/OTP $ver"
-    mkdir -p ${build}/otp-sdk
-    unzip -qq ${cache}/${tarball} -d ${build}/otp-sdk
-    
-    echo "-------> compile Erlang/OTP $ver"
-    (
-        chmod -R 777 ${SDKROOT}/otp-${ver}
-        cd ${SDKROOT}/otp-${ver}
+    SDKROOT=${cache}/otp-sdk
+    RELEASE_BUILD=${SDKROOT}/otp-${ver}/release/x86_64-unknown-linux-gnu
 
-        ./otp_build autoconf
-        ./configure --with-ssl --enable-dirty-schedulers
-        make
-        make release
+    (
+        set -e
+
+        # Already cached?
+        test -f $RELEASE_BUILD && exit
+
+        echo "-------> Unpacking Erlang/OTP $ver"
+        mkdir -p ${SDKROOT}
+        rm -rf ${SDKROOT}/otp-${ver} # be sure not to build up cruft
+        unzip -qq ${cache}/${tarball} -d ${SDKROOT}
+    
+        echo "-------> compile Erlang/OTP $ver"
+        (
+            chmod -R 777 ${SDKROOT}/otp-${ver}
+            cd ${SDKROOT}/otp-${ver}
+
+            ./otp_build autoconf
+            ./configure --with-ssl --enable-dirty-schedulers
+            make
+            make release
+        )
     )
-    mv ${SDKROOT}/otp-${ver}/release/x86_64-unknown-linux-gnu/ ${ERLROOT}
-    rm -rf ${SDKROOT}
+
+    cp -r ${RELEASE_BUILD} ${ERLROOT}
     
     echo "-------> Installing Erlang/OTP $ver"
     ln -s ${ERLROOT} /app/otp
